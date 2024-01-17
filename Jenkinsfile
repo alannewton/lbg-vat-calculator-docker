@@ -1,12 +1,49 @@
-pipeline{
- environment {
- registry = "alannewton/vatcal"
+pipeline {
+
+    environment {
+        registry = "alannewton/vatcal"
         registryCredentials = "dockerhub_id"
         dockerImage = ""
     }
+
     agent any
-        stages {
-            stage ('Build Docker Image'){
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/alannewton/lbg-vat-calculator-docker.git'
+            }
+        }
+
+        stage('Install') {
+            steps {
+                sh "npm install"
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh "npm test"
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            environment {
+                scannerHome = tool 'sonarqube'
+            }
+
+            steps {
+                withSonarQubeEnv('sonarqube-alan') {
+                    sh "${scannerHome}/bin/sonar-scanner"
+                }
+
+                timeout(time: 10, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage ('Build Docker Image'){
                 steps{
                     script {
                         dockerImage = docker.build(registry)
@@ -32,5 +69,5 @@ pipeline{
                            }
                 }
             }
-        }
+    }
 }
